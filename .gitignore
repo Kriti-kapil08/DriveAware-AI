@@ -1,0 +1,12 @@
+.venv/
+.tmp/
+__pycache__/
+*.py[cod]
+.streamlit/secrets.toml
+face_landmarker.task
+*.mp4
+*.mov
+*.avi
+*.m4v
+*.csv
+driveaware.zip
