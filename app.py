@@ -1,6 +1,7 @@
 from pathlib import Path
 from datetime import datetime
 import math
+import re
 import tempfile
 from urllib.request import urlretrieve
 
@@ -22,9 +23,11 @@ if "clip_history" not in st.session_state:
     st.session_state.clip_history = []
 if "cue_event_history" not in st.session_state:
     st.session_state.cue_event_history = []
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
 
 st.title("DriveAware AI")
-st.caption("Phase 2: face landmarks, temporal cues, and visual evidence quality")
+st.caption("CV prototype with temporal cues, reliability checks, and a grounded NLP assistant")
 st.info(
     "This learning prototype displays facial landmarks only. It does not diagnose "
     "fatigue or determine whether someone is safe to drive. Uploaded videos are "
@@ -35,7 +38,7 @@ with st.sidebar:
     st.header("Monitoring status")
     st.write("Camera: not started")
     st.write("Fatigue estimate: not available yet")
-    st.write("Current phase: video and visual quality")
+    st.write("Current phase: CV + grounded Q&A baseline")
 
 st.subheader("Analyze a recorded video")
 st.write(
@@ -204,6 +207,78 @@ def find_temporal_cues(samples, sample_rate, eye_limit, mouth_limit):
             pitch_start, pitch_run, pitch_reported = None, 0, False
 
     return events
+
+
+def classify_question(question):
+    """Small transparent NLP baseline using normalized words and intent cues."""
+    normalized = question.lower().strip()
+    tokens = set(re.findall(r"[a-z0-9]+", normalized))
+
+    if tokens.intersection({"camera", "lighting", "brightness", "visible", "visibility", "blocked", "working"}):
+        return "camera_status"
+    if tokens.intersection({"why", "reason", "trigger", "triggered", "cause", "alert"}):
+        return "why_cue"
+    if tokens.intersection({"recent", "events", "event", "detected", "happened", "history", "cues"}):
+        return "recent_events"
+    if tokens.intersection({"summary", "summarize", "overall", "session", "totals"}):
+        return "session_summary"
+    if tokens.intersection({"help", "questions", "ask"}):
+        return "help"
+    return "unsupported"
+
+
+def answer_from_session(intent):
+    clips = st.session_state.clip_history
+    events = st.session_state.cue_event_history
+    if intent == "why_cue":
+        if events:
+            event = events[-1]
+            return (
+                f"In **{event['Video']}**, the system recorded **{event['Cue']}**. "
+                f"It began at about {event['Started (s)']} s and met the rule at "
+                f"{event['Rule met (s)']} s because {event['Evidence']}. This is a "
+                "measured visual cue, not a fatigue diagnosis."
+            )
+        if clips:
+            return "No sustained cue was recorded in this session. The system only reports a cue after its time rule is met and visual evidence passes the quality check."
+        return "No video has been analyzed in this app session yet, so I do not have an event to explain."
+
+    if intent == "recent_events":
+        if not events:
+            return "There are no sustained cues in the current session history. Analyze a video first; short-lived measurements may not become events."
+        lines = [
+            f"- **{event['Cue']}** in {event['Video']} at {event['Started (s)']} s: {event['Evidence']}"
+            for event in events[-5:]
+        ]
+        return "Recent recorded cues:\n\n" + "\n".join(lines)
+
+    if intent == "session_summary":
+        if not clips:
+            return "No video has been analyzed in this app session yet, so there is no session summary to report."
+        coverage = np.mean([float(clip["Face coverage"].rstrip("%")) for clip in clips])
+        return (
+            f"This app session contains **{len(clips)} analyzed clip(s)** and "
+            f"**{len(events)} sustained cue(s)**. Average face-tracking coverage was "
+            f"{coverage:.0f}%. These are visual observations from the clip analyses, "
+            "not a diagnosis of driver fatigue."
+        )
+
+    if intent == "camera_status":
+        if not clips:
+            return "No video has been analyzed yet, so camera visibility and brightness are unavailable."
+        latest = clips[-1]
+        return (
+            f"For the latest clip (**{latest['Video']}**), face-tracking coverage was "
+            f"{latest['Face coverage']} and average face-region brightness was "
+            f"{latest['Face brightness']}/255. The visual-evidence status was "
+            f"**{latest['Visual evidence']}**. Coverage and brightness are simple "
+            "quality checks, not a complete camera-health test."
+        )
+
+    if intent == "help":
+        return "You can ask why a cue was recorded, what recent events were detected, for a session summary, or whether the latest clip had adequate visual evidence."
+
+    return "I can answer questions about recorded cues, recent events, the session summary, and visual-evidence quality. Try rephrasing using one of those topics."
 
 
 def get_face_landmarker():
@@ -463,6 +538,29 @@ if st.session_state.clip_history:
     if st.button("Clear session history"):
         st.session_state.clip_history = []
         st.session_state.cue_event_history = []
+        st.session_state.chat_history = []
         st.rerun()
 else:
     st.write("Analyze a video to start this session's history.")
+
+
+st.divider()
+st.header("Ask DriveAware about this session")
+st.write(
+    "Answers are built only from the current session's recorded events and quality "
+    "checks. This first NLP version uses a transparent intent-matching baseline."
+)
+question = st.chat_input("Try: Why was a cue recorded? or Summarize this session")
+if question:
+    intent = classify_question(question)
+    answer = answer_from_session(intent)
+    st.session_state.chat_history.append({"role": "user", "content": question})
+    st.session_state.chat_history.append(
+        {"role": "assistant", "content": answer, "intent": intent}
+    )
+
+for message in st.session_state.chat_history:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+        if message["role"] == "assistant":
+            st.caption(f"Recognized question type: {message['intent'].replace('_', ' ')}")

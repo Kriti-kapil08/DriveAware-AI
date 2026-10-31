@@ -1,0 +1,138 @@
+{"text":"Why was a low eye opening cue recorded?","label":"why_cue","split":"train"}
+{"text":"Why did DriveAware log this alert?","label":"why_cue","split":"train"}
+{"text":"What caused the sustained eye cue?","label":"why_cue","split":"train"}
+{"text":"Explain the latest recorded cue to me","label":"why_cue","split":"train"}
+{"text":"Why did I receive this warning?","label":"why_cue","split":"train"}
+{"text":"Which measurement caused this event?","label":"why_cue","split":"train"}
+{"text":"Tell me the reason for the last alert","label":"why_cue","split":"train"}
+{"text":"Why did the system flag low eye opening?","label":"why_cue","split":"train"}
+{"text":"What evidence supports this cue?","label":"why_cue","split":"train"}
+{"text":"Why is this event in my history?","label":"why_cue","split":"train"}
+{"text":"Can you explain the last warning?","label":"why_cue","split":"train"}
+{"text":"What rule did this alert meet?","label":"why_cue","split":"train"}
+{"text":"Why was a head movement cue added?","label":"why_cue","split":"train"}
+{"text":"Show me why the app recorded an event","label":"why_cue","split":"train"}
+{"text":"What visual evidence triggered this cue?","label":"why_cue","split":"train"}
+{"text":"Why did it detect an event?","label":"why_cue","split":"validation"}
+{"text":"How come I got this alert?","label":"why_cue","split":"validation"}
+{"text":"Explain what led to the warning","label":"why_cue","split":"validation"}
+{"text":"What made the system record that cue?","label":"why_cue","split":"test"}
+{"text":"Can you tell me the alert reason?","label":"why_cue","split":"test"}
+{"text":"What evidence is behind the latest warning?","label":"why_cue","split":"test"}
+{"text":"How long did the eye cue last before it triggered?","label":"why_cue","split":"test"}
+{"text":"Why was that visual event saved?","label":"why_cue","split":"test"}
+{"text":"What events were detected recently?","label":"recent_events","split":"train"}
+{"text":"Show the recent cue history","label":"recent_events","split":"train"}
+{"text":"What happened in my latest clip?","label":"recent_events","split":"train"}
+{"text":"List the events from this session","label":"recent_events","split":"train"}
+{"text":"Which cues did you record?","label":"recent_events","split":"train"}
+{"text":"Were any sustained cues found?","label":"recent_events","split":"train"}
+{"text":"Show me the latest event details","label":"recent_events","split":"train"}
+{"text":"What did the system detect in the video?","label":"recent_events","split":"train"}
+{"text":"Tell me about the last few events","label":"recent_events","split":"train"}
+{"text":"How many cues were logged?","label":"recent_events","split":"train"}
+{"text":"Was there a mouth opening event?","label":"recent_events","split":"train"}
+{"text":"Did the app detect a head movement?","label":"recent_events","split":"train"}
+{"text":"When were cues recorded in the clip?","label":"recent_events","split":"train"}
+{"text":"Open my event history","label":"recent_events","split":"train"}
+{"text":"Give me the recent detections","label":"recent_events","split":"train"}
+{"text":"Did anything happen during monitoring?","label":"recent_events","split":"validation"}
+{"text":"What did you notice in the last recording?","label":"recent_events","split":"validation"}
+{"text":"Show the cue timeline","label":"recent_events","split":"validation"}
+{"text":"Which visual events were saved?","label":"recent_events","split":"test"}
+{"text":"Were there any alerts in this run?","label":"recent_events","split":"test"}
+{"text":"Tell me what was detected","label":"recent_events","split":"test"}
+{"text":"When did the last cue occur?","label":"recent_events","split":"test"}
+{"text":"Can I see the monitoring events?","label":"recent_events","split":"test"}
+{"text":"Summarize this session","label":"session_summary","split":"train"}
+{"text":"Give me an overview of all analyzed clips","label":"session_summary","split":"train"}
+{"text":"How did this monitoring session go overall?","label":"session_summary","split":"train"}
+{"text":"Show the session totals","label":"session_summary","split":"train"}
+{"text":"How many videos have I analyzed?","label":"session_summary","split":"train"}
+{"text":"Summarize my results so far","label":"session_summary","split":"train"}
+{"text":"What is the overall face coverage?","label":"session_summary","split":"train"}
+{"text":"Give me a short report for this run","label":"session_summary","split":"train"}
+{"text":"How many sustained cues were recorded in total?","label":"session_summary","split":"train"}
+{"text":"Provide an overview of the current session","label":"session_summary","split":"train"}
+{"text":"What are the main results?","label":"session_summary","split":"train"}
+{"text":"Give me the monitoring summary","label":"session_summary","split":"train"}
+{"text":"How many clips and events are in this session?","label":"session_summary","split":"train"}
+{"text":"Can you recap the analysis?","label":"session_summary","split":"train"}
+{"text":"Tell me the session statistics","label":"session_summary","split":"train"}
+{"text":"What is the overall summary so far?","label":"session_summary","split":"validation"}
+{"text":"Report the totals for my videos","label":"session_summary","split":"validation"}
+{"text":"Can you summarize the monitoring results?","label":"session_summary","split":"validation"}
+{"text":"How many clips were processed altogether?","label":"session_summary","split":"test"}
+{"text":"Give me a recap of this run","label":"session_summary","split":"test"}
+{"text":"What are my session-wide statistics?","label":"session_summary","split":"test"}
+{"text":"Summarize the results from all recordings","label":"session_summary","split":"test"}
+{"text":"Tell me how the session performed","label":"session_summary","split":"test"}
+{"text":"Is the camera working properly?","label":"camera_status","split":"train"}
+{"text":"Was my face visible in the latest video?","label":"camera_status","split":"train"}
+{"text":"How was the lighting quality?","label":"camera_status","split":"train"}
+{"text":"Check the visual evidence status","label":"camera_status","split":"train"}
+{"text":"Was face tracking reliable?","label":"camera_status","split":"train"}
+{"text":"Did the camera have enough light?","label":"camera_status","split":"train"}
+{"text":"Why was the video marked insufficient?","label":"camera_status","split":"train"}
+{"text":"Was my face blocked from view?","label":"camera_status","split":"train"}
+{"text":"How many frames contained a detected face?","label":"camera_status","split":"train"}
+{"text":"Tell me the brightness value","label":"camera_status","split":"train"}
+{"text":"Is the latest clip clear enough to analyze?","label":"camera_status","split":"train"}
+{"text":"Was visibility good during the recording?","label":"camera_status","split":"train"}
+{"text":"Show the camera quality measurements","label":"camera_status","split":"train"}
+{"text":"Could poor lighting affect this result?","label":"camera_status","split":"train"}
+{"text":"Was a face detected throughout the clip?","label":"camera_status","split":"train"}
+{"text":"Can the app see the driver clearly?","label":"camera_status","split":"validation"}
+{"text":"Was there enough light in my recording?","label":"camera_status","split":"validation"}
+{"text":"How strong was face detection?","label":"camera_status","split":"validation"}
+{"text":"Did the system have a clear view?","label":"camera_status","split":"test"}
+{"text":"Was the face visible most of the time?","label":"camera_status","split":"test"}
+{"text":"How bright was the face region?","label":"camera_status","split":"test"}
+{"text":"Can you check whether my video quality was adequate?","label":"camera_status","split":"test"}
+{"text":"Did tracking fail because the face was hidden?","label":"camera_status","split":"test"}
+{"text":"What can I ask you about?","label":"help","split":"train"}
+{"text":"How do I use this assistant?","label":"help","split":"train"}
+{"text":"What questions can you answer?","label":"help","split":"train"}
+{"text":"Show me the supported topics","label":"help","split":"train"}
+{"text":"What does the dashboard do?","label":"help","split":"train"}
+{"text":"How can I ask about my alerts?","label":"help","split":"train"}
+{"text":"What information can you provide?","label":"help","split":"train"}
+{"text":"Give me some example questions","label":"help","split":"train"}
+{"text":"How do I see the session report?","label":"help","split":"train"}
+{"text":"Explain what this chat can do","label":"help","split":"train"}
+{"text":"Can you help me understand the controls?","label":"help","split":"train"}
+{"text":"What topics are available here?","label":"help","split":"train"}
+{"text":"How do I check a recent event?","label":"help","split":"train"}
+{"text":"Tell me how to ask for a summary","label":"help","split":"train"}
+{"text":"Where can I ask about camera quality?","label":"help","split":"train"}
+{"text":"How should I interact with this panel?","label":"help","split":"validation"}
+{"text":"What are your capabilities?","label":"help","split":"validation"}
+{"text":"Can you show me how to use the chat?","label":"help","split":"validation"}
+{"text":"What kinds of questions are supported?","label":"help","split":"test"}
+{"text":"How do I get a recap?","label":"help","split":"test"}
+{"text":"Tell me what you can help with","label":"help","split":"test"}
+{"text":"Where do I find instructions?","label":"help","split":"test"}
+{"text":"How do I check the last alert?","label":"help","split":"test"}
+{"text":"What is the weather in Delhi today?","label":"unsupported","split":"train"}
+{"text":"Am I medically fit to drive?","label":"unsupported","split":"train"}
+{"text":"Tell me the fastest route to the airport","label":"unsupported","split":"train"}
+{"text":"Can you diagnose whether I am tired?","label":"unsupported","split":"train"}
+{"text":"What music should I play?","label":"unsupported","split":"train"}
+{"text":"Can you identify my exact age?","label":"unsupported","split":"train"}
+{"text":"Will I have an accident tomorrow?","label":"unsupported","split":"train"}
+{"text":"What is the current traffic near me?","label":"unsupported","split":"train"}
+{"text":"Can you tell what I am thinking?","label":"unsupported","split":"train"}
+{"text":"Is it safe for me to drive right now?","label":"unsupported","split":"train"}
+{"text":"What is my blood pressure?","label":"unsupported","split":"train"}
+{"text":"Can you call emergency services?","label":"unsupported","split":"train"}
+{"text":"How long should I sleep tonight?","label":"unsupported","split":"train"}
+{"text":"Can you recognize who I am?","label":"unsupported","split":"train"}
+{"text":"Tell me the news headlines","label":"unsupported","split":"train"}
+{"text":"Do I have a sleep disorder?","label":"unsupported","split":"validation"}
+{"text":"Can you recommend a nearby restaurant?","label":"unsupported","split":"validation"}
+{"text":"What is the speed limit on my road?","label":"unsupported","split":"validation"}
+{"text":"Predict whether I will fall asleep tonight","label":"unsupported","split":"test"}
+{"text":"Can you tell me if I am safe to drive?","label":"unsupported","split":"test"}
+{"text":"What is the weather forecast for tomorrow?","label":"unsupported","split":"test"}
+{"text":"Give me medical advice about fatigue","label":"unsupported","split":"test"}
+{"text":"Where is the nearest gas station?","label":"unsupported","split":"test"}

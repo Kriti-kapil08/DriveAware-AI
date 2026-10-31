@@ -10,3 +10,5 @@ face_landmarker.task
 *.m4v
 *.csv
 driveaware.zip
+driveaware_intent_model/
+driveaware_intent_model.zip
