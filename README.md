@@ -71,7 +71,20 @@ For a simple Google Colab run:
    files.download("driveaware_intent_model.zip")
    ```
 
-The Streamlit app still uses the rule-based matcher until the exported model is
-integrated in the next step. Hugging Face documents DistilBERT sequence
-classification and fine-tuning with its Trainer API; this project uses an
-equivalent small PyTorch training loop. [DistilBERT](https://huggingface.co/docs/transformers/en/model_doc/distilbert) · [Trainer](https://huggingface.co/docs/transformers/en/trainer)
+The app can use the local model experimentally. Keep the extracted
+`driveaware_intent_model/` folder next to `app.py`, then install the optional
+inference dependencies:
+
+```powershell
+.venv\Scripts\python.exe -m pip install -r requirements-nlp.txt
+```
+
+In the app, enable **Use experimental DistilBERT intent classifier** to try it.
+The keyword baseline remains the default. The trained model scored 0.47 accuracy
+and 0.44 macro-F1 on this small held-out synthetic test set, so its output is
+experimental; a confidence below 0.55 falls back to the keyword baseline.
+Answers are still generated only from structured session records. Keep model
+weights out of GitHub; `.gitignore` excludes the checkpoint folder.
+
+Hugging Face documents DistilBERT sequence classification and PyTorch support;
+this project uses a small PyTorch training loop. [DistilBERT](https://huggingface.co/docs/transformers/en/model_doc/distilbert) · [Trainer](https://huggingface.co/docs/transformers/en/trainer)

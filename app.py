@@ -17,6 +17,8 @@ MODEL_URL = (
     "face_landmarker/float16/1/face_landmarker.task"
 )
 MODEL_PATH = Path(__file__).parent / "face_landmarker.task"
+NLP_MODEL_PATH = Path(__file__).parent / "driveaware_intent_model"
+NLP_MIN_CONFIDENCE = 0.55
 
 st.set_page_config(page_title="DriveAware AI", page_icon="🚗", layout="wide")
 if "clip_history" not in st.session_state:
@@ -225,6 +227,38 @@ def classify_question(question):
     if tokens.intersection({"help", "questions", "ask"}):
         return "help"
     return "unsupported"
+
+
+@st.cache_resource(show_spinner=False)
+def load_intent_model():
+    """Load the optional local DistilBERT checkpoint for experimental use."""
+    if not (NLP_MODEL_PATH / "config.json").exists():
+        return None, "No local DistilBERT checkpoint was found."
+    try:
+        import torch
+        from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+        tokenizer = AutoTokenizer.from_pretrained(str(NLP_MODEL_PATH), local_files_only=True)
+        model = AutoModelForSequenceClassification.from_pretrained(
+            str(NLP_MODEL_PATH), local_files_only=True
+        )
+        model.to(torch.device("cpu"))
+        model.eval()
+        return {"torch": torch, "tokenizer": tokenizer, "model": model}, None
+    except Exception as error:
+        return None, str(error)
+
+
+def classify_with_intent_model(question, bundle):
+    torch = bundle["torch"]
+    encoded = bundle["tokenizer"](
+        question, truncation=True, padding="max_length", max_length=64, return_tensors="pt"
+    )
+    with torch.inference_mode():
+        probabilities = torch.softmax(bundle["model"](**encoded).logits, dim=-1)[0]
+    confidence, label_id = torch.max(probabilities, dim=-1)
+    intent = bundle["model"].config.id2label[int(label_id.item())]
+    return intent, float(confidence.item())
 
 
 def answer_from_session(intent):
@@ -548,19 +582,63 @@ st.divider()
 st.header("Ask DriveAware about this session")
 st.write(
     "Answers are built only from the current session's recorded events and quality "
-    "checks. This first NLP version uses a transparent intent-matching baseline."
+    "checks. The keyword baseline is the default; the fine-tuned DistilBERT option is experimental."
 )
+if (NLP_MODEL_PATH / "config.json").exists():
+    use_distilbert = st.checkbox(
+        "Use experimental DistilBERT intent classifier",
+        value=False,
+        help="This model scored 0.47 test accuracy and 0.44 test macro-F1 on the small held-out synthetic set.",
+    )
+    st.caption(
+        "The model is experimental. Test macro-F1 was 0.44 on a small synthetic set; "
+        "the keyword baseline remains the default. A score below 0.55 falls back to the baseline."
+    )
+else:
+    use_distilbert = False
+    st.caption(
+        "To enable DistilBERT, extract the trained model folder next to app.py and "
+        "install the optional dependencies from requirements-nlp.txt."
+    )
 question = st.chat_input("Try: Why was a cue recorded? or Summarize this session")
 if question:
-    intent = classify_question(question)
+    intent_method = "keyword baseline"
+    confidence = None
+    if use_distilbert:
+        model_bundle, model_error = load_intent_model()
+        if model_error:
+            st.warning(f"DistilBERT could not be loaded; using the keyword baseline. Details: {model_error}")
+            intent = classify_question(question)
+            intent_method = "keyword baseline (model unavailable)"
+        else:
+            predicted_intent, confidence = classify_with_intent_model(question, model_bundle)
+            if confidence < NLP_MIN_CONFIDENCE:
+                intent = classify_question(question)
+                intent_method = "keyword baseline (low model confidence)"
+            else:
+                intent = predicted_intent
+                intent_method = "experimental DistilBERT"
+    else:
+        intent = classify_question(question)
     answer = answer_from_session(intent)
     st.session_state.chat_history.append({"role": "user", "content": question})
     st.session_state.chat_history.append(
-        {"role": "assistant", "content": answer, "intent": intent}
+        {
+            "role": "assistant",
+            "content": answer,
+            "intent": intent,
+            "method": intent_method,
+            "confidence": confidence,
+        }
     )
 
 for message in st.session_state.chat_history:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
         if message["role"] == "assistant":
-            st.caption(f"Recognized question type: {message['intent'].replace('_', ' ')}")
+            method = message.get("method", "keyword baseline")
+            confidence = message.get("confidence")
+            confidence_text = f" · confidence {confidence:.2f}" if confidence is not None else ""
+            st.caption(
+                f"Intent: {message['intent'].replace('_', ' ')} · method: {method}{confidence_text}"
+            )
