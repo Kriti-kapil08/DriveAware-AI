@@ -9,6 +9,7 @@ import argparse
 import copy
 import json
 import random
+import re
 from pathlib import Path
 
 import numpy as np
@@ -78,11 +79,38 @@ def evaluate(model, loader, device):
     }
 
 
+def classify_keyword_baseline(text):
+    """Keep this rule order aligned with app.py for a fair comparison."""
+    tokens = set(re.findall(r"[a-z0-9]+", text.lower().strip()))
+    if tokens.intersection({"camera", "lighting", "brightness", "visible", "visibility", "blocked", "working"}):
+        return "camera_status"
+    if tokens.intersection({"why", "reason", "trigger", "triggered", "cause", "alert"}):
+        return "why_cue"
+    if tokens.intersection({"recent", "events", "event", "detected", "happened", "history", "cues"}):
+        return "recent_events"
+    if tokens.intersection({"summary", "summarize", "overall", "session", "totals"}):
+        return "session_summary"
+    if tokens.intersection({"help", "questions", "ask"}):
+        return "help"
+    return "unsupported"
+
+
+def evaluate_keyword_baseline(rows, labels):
+    label_to_id = {label: index for index, label in enumerate(labels)}
+    true_labels = [label_to_id[row["label"]] for row in rows]
+    predicted_labels = [label_to_id[classify_keyword_baseline(row["text"])] for row in rows]
+    return {
+        "accuracy": float(accuracy_score(true_labels, predicted_labels)),
+        "macro_f1": float(f1_score(true_labels, predicted_labels, average="macro", zero_division=0)),
+        "confusion_matrix": confusion_matrix(true_labels, predicted_labels).tolist(),
+    }
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", default="intent_examples.jsonl")
     parser.add_argument("--output_dir", default="driveaware_intent_model")
-    parser.add_argument("--epochs", type=int, default=3)
+    parser.add_argument("--epochs", type=int, default=5)
     args = parser.parse_args()
 
     random.seed(42)
@@ -139,7 +167,8 @@ def main():
     if best_state is not None:
         model.load_state_dict(best_state)
         model.to(device)
-    test_metrics = evaluate(model, test_loader, device)
+    distilbert_test_metrics = evaluate(model, test_loader, device)
+    keyword_test_metrics = evaluate_keyword_baseline(splits["test"], labels)
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -150,7 +179,10 @@ def main():
         "labels": labels,
         "split_sizes": {name: len(rows) for name, rows in splits.items()},
         "best_validation_macro_f1": best_validation_f1,
-        "test": test_metrics,
+        "test": {
+            "distilbert": distilbert_test_metrics,
+            "keyword_baseline": keyword_test_metrics,
+        },
         "note": "Small synthetic intent dataset; test scores are a learning baseline, not evidence of broad user generalization.",
     }
     (output_dir / "evaluation.json").write_text(json.dumps(report, indent=2), encoding="utf-8")

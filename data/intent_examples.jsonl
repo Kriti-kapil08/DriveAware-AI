@@ -136,3 +136,63 @@
 {"text":"What is the weather forecast for tomorrow?","label":"unsupported","split":"test"}
 {"text":"Give me medical advice about fatigue","label":"unsupported","split":"test"}
 {"text":"Where is the nearest gas station?","label":"unsupported","split":"test"}
+{"text":"Was the eye ratio what made this cue appear in the log?","label":"why_cue","split":"train"}
+{"text":"Can you break down the evidence for that entry?","label":"why_cue","split":"train"}
+{"text":"Tell me why this cue crossed its threshold","label":"why_cue","split":"train"}
+{"text":"Which rule did the last cue satisfy?","label":"why_cue","split":"train"}
+{"text":"Why does my history show sustained low eye opening?","label":"why_cue","split":"train"}
+{"text":"Was it the eye ratio or mouth ratio that caused the entry?","label":"why_cue","split":"train"}
+{"text":"Explain the evidence behind the saved warning","label":"why_cue","split":"train"}
+{"text":"Which measurements led to that recorded event?","label":"why_cue","split":"train"}
+{"text":"Can you explain what made that entry appear?","label":"why_cue","split":"validation"}
+{"text":"What exactly triggered the saved cue?","label":"why_cue","split":"validation"}
+{"text":"Show me everything logged during the last analysis","label":"recent_events","split":"train"}
+{"text":"Were there any eye, mouth, or head cues in this clip?","label":"recent_events","split":"train"}
+{"text":"List the saved detections with their times","label":"recent_events","split":"train"}
+{"text":"Did the analysis produce an event entry?","label":"recent_events","split":"train"}
+{"text":"Which cue happened first?","label":"recent_events","split":"train"}
+{"text":"What did the review section record?","label":"recent_events","split":"train"}
+{"text":"Were any events added to my history today?","label":"recent_events","split":"train"}
+{"text":"Show me the event names and timestamps","label":"recent_events","split":"train"}
+{"text":"Can you list the saved cues from this recording?","label":"recent_events","split":"validation"}
+{"text":"What entries are in the event log?","label":"recent_events","split":"validation"}
+{"text":"How many recordings did I review, and what was the average coverage?","label":"session_summary","split":"train"}
+{"text":"Give me the totals for clips and cues","label":"session_summary","split":"train"}
+{"text":"What does my analysis history add up to?","label":"session_summary","split":"train"}
+{"text":"Show the overall statistics from this app session","label":"session_summary","split":"train"}
+{"text":"How many sustained events were there across all videos?","label":"session_summary","split":"train"}
+{"text":"Can you recap the counts and average visibility?","label":"session_summary","split":"train"}
+{"text":"Give me a combined report, not just the last clip","label":"session_summary","split":"train"}
+{"text":"What were the session-wide results for every recording?","label":"session_summary","split":"train"}
+{"text":"Can you give me the numbers for the whole monitoring session?","label":"session_summary","split":"validation"}
+{"text":"Summarize all clips I have analyzed so far","label":"session_summary","split":"validation"}
+{"text":"How often did the app keep track of my face?","label":"camera_status","split":"train"}
+{"text":"Did the latest video pass the visual quality check?","label":"camera_status","split":"train"}
+{"text":"What percentage of frames had a face?","label":"camera_status","split":"train"}
+{"text":"Was the face-region brightness above the minimum?","label":"camera_status","split":"train"}
+{"text":"Could the recording quality be why results were withheld?","label":"camera_status","split":"train"}
+{"text":"How stable was face detection across the clip?","label":"camera_status","split":"train"}
+{"text":"Did visibility drop during any part of the video?","label":"camera_status","split":"train"}
+{"text":"Tell me whether the lighting and framing were acceptable","label":"camera_status","split":"train"}
+{"text":"Was camera visibility sufficient for the analysis?","label":"camera_status","split":"validation"}
+{"text":"How many frames lost the face tracker?","label":"camera_status","split":"validation"}
+{"text":"Can you explain the different dashboard indicators?","label":"help","split":"train"}
+{"text":"How do I ask about a saved cue?","label":"help","split":"train"}
+{"text":"What can this question panel tell me?","label":"help","split":"train"}
+{"text":"Show examples for asking about visual quality","label":"help","split":"train"}
+{"text":"How can I get an overview of the recordings?","label":"help","split":"train"}
+{"text":"What should I type to see recent detections?","label":"help","split":"train"}
+{"text":"Can you explain the features available in this chat?","label":"help","split":"train"}
+{"text":"Where do I ask for an explanation of an alert?","label":"help","split":"train"}
+{"text":"Could you give me sample ways to ask about events?","label":"help","split":"validation"}
+{"text":"What does this assistant support?","label":"help","split":"validation"}
+{"text":"Can you tell me my current medical condition?","label":"unsupported","split":"train"}
+{"text":"Am I too sleepy to drive safely right now?","label":"unsupported","split":"train"}
+{"text":"Please diagnose my sleep problem","label":"unsupported","split":"train"}
+{"text":"Can you predict my health from the camera?","label":"unsupported","split":"train"}
+{"text":"Tell me which medicine I should take","label":"unsupported","split":"train"}
+{"text":"Can you identify my location from this video?","label":"unsupported","split":"train"}
+{"text":"What will the traffic be like on my commute?","label":"unsupported","split":"train"}
+{"text":"Should I continue driving according to your diagnosis?","label":"unsupported","split":"train"}
+{"text":"Can you medically certify that I am alert?","label":"unsupported","split":"validation"}
+{"text":"Tell me whether I should take a sleeping pill","label":"unsupported","split":"validation"}

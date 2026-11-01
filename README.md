@@ -45,9 +45,12 @@ not a fine-tuned transformer.
 
 `data/intent_examples.jsonl` contains six question intents with separate
 train/validation/test labels. `train_intent.py` fine-tunes DistilBERT and reports
-held-out accuracy, macro-F1, and a confusion matrix. The examples are synthetic
-student-created prompts, so the metrics are a small learning baseline, not proof
-of generalization to all users.
+held-out accuracy, macro-F1, and a confusion matrix for both DistilBERT and the
+keyword baseline. The examples are synthetic student-created prompts, so the
+metrics are a small learning baseline, not proof of generalization to all users.
+The current data has 23 training, 5 validation, and 5 held-out test questions per
+intent; the test questions were kept unchanged while adding more varied training
+examples.
 
 For a simple Google Colab run:
 

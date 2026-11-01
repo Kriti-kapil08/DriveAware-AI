@@ -1,5 +1,6 @@
 from pathlib import Path
 from datetime import datetime
+import json
 import math
 import re
 import tempfile
@@ -259,6 +260,18 @@ def classify_with_intent_model(question, bundle):
     confidence, label_id = torch.max(probabilities, dim=-1)
     intent = bundle["model"].config.id2label[int(label_id.item())]
     return intent, float(confidence.item())
+
+
+def read_intent_test_metrics():
+    metrics_path = NLP_MODEL_PATH / "evaluation.json"
+    if not metrics_path.exists():
+        return None
+    try:
+        report = json.loads(metrics_path.read_text(encoding="utf-8"))
+        test_metrics = report.get("test", {})
+        return test_metrics.get("distilbert", test_metrics)
+    except (OSError, json.JSONDecodeError, AttributeError):
+        return None
 
 
 def answer_from_session(intent):
@@ -585,13 +598,19 @@ st.write(
     "checks. The keyword baseline is the default; the fine-tuned DistilBERT option is experimental."
 )
 if (NLP_MODEL_PATH / "config.json").exists():
+    model_test_metrics = read_intent_test_metrics()
+    test_summary = (
+        f"test accuracy {model_test_metrics['accuracy']:.2f}, macro-F1 {model_test_metrics['macro_f1']:.2f}"
+        if model_test_metrics and "accuracy" in model_test_metrics and "macro_f1" in model_test_metrics
+        else "test metrics unavailable"
+    )
     use_distilbert = st.checkbox(
-        "Use experimental DistilBERT intent classifier",
+        f"Use experimental DistilBERT intent classifier ({test_summary})",
         value=False,
-        help="This model scored 0.47 test accuracy and 0.44 test macro-F1 on the small held-out synthetic set.",
+        help="This score is from a small synthetic held-out question set and may not represent real users.",
     )
     st.caption(
-        "The model is experimental. Test macro-F1 was 0.44 on a small synthetic set; "
+        f"The model is experimental; {test_summary} on a small synthetic set. "
         "the keyword baseline remains the default. A score below 0.55 falls back to the baseline."
     )
 else:
