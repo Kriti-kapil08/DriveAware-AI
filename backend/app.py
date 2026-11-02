@@ -12,7 +12,7 @@ from pathlib import Path
 from flask import Flask, jsonify, request
 from werkzeug.utils import secure_filename
 
-from backend.vision import analyze_video
+from backend.vision import analyze_live_frame, analyze_video
 
 ROOT = Path(__file__).resolve().parents[1]
 DB_PATH = ROOT / "driveaware_history.sqlite3"
@@ -199,6 +199,53 @@ def history():
     return jsonify({"records": get_history(request.args.get("session_id"))})
 
 
+@app.post("/api/live-frame")
+def live_frame():
+    frame = request.files.get("frame")
+    if frame is None:
+        return jsonify({"error": "No webcam frame was received."}), 400
+    try:
+        return jsonify(analyze_live_frame(frame.read()))
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    except Exception as error:
+        app.logger.exception("Live webcam frame analysis failed")
+        return jsonify({"error": f"Live frame analysis failed: {error}"}), 500
+
+
+@app.post("/api/live-session")
+def save_live_session():
+    payload = request.get_json(silent=True) or {}
+    measurements = payload.get("measurements") or []
+    if not measurements:
+        return jsonify({"error": "Start the webcam and collect frames before saving."}), 400
+    detected = [row for row in measurements if row.get("Face detected")]
+    brightnesses = [row["Face brightness"] for row in detected if row.get("Face brightness") is not None]
+    ears = [row["EAR"] for row in detected if row.get("EAR") is not None]
+    mars = [row["MAR"] for row in detected if row.get("MAR") is not None]
+    coverage = len(detected) / len(measurements)
+    brightness = sum(brightnesses) / len(brightnesses) if brightnesses else 0.0
+    adequate = coverage >= 0.70 and brightness >= 45
+    events = payload.get("events") or []
+    record = {
+        "Video": "Live webcam session",
+        "Analyzed at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "Frames": len(measurements),
+        "Face coverage": f"{coverage:.0%}",
+        "Face brightness": round(brightness, 1) if brightnesses else None,
+        "Visual evidence": "Adequate" if adequate else "Insufficient",
+        "Average EAR": round(sum(ears) / len(ears), 3) if ears else None,
+        "Average MAR": round(sum(mars) / len(mars), 3) if mars else None,
+        "Sustained cues": len(events),
+    }
+    result = {"analysis": record, "events": events}
+    session_id = str(payload.get("session_id") or uuid.uuid4())
+    session_started_at = str(payload.get("session_started_at") or record["Analyzed at"])
+    save_analysis(session_id, session_started_at, result)
+    return jsonify({"session_id": session_id, "session_started_at": session_started_at,
+                    "analyzed_at": record["Analyzed at"], **result})
+
+
 @app.post("/api/ask")
 def ask():
     try:
@@ -221,4 +268,4 @@ if __name__ == "__main__":
     # Torch and other packages write/update files under site-packages while
     # importing. Flask's debug reloader watches those files and can restart
     # the server during an NLP request, resetting the Vite proxy connection.
-    app.run(host="127.0.0.1", port=5000, debug=False, use_reloader=False)
+    app.run(host="127.0.0.1", port=5001, debug=False, use_reloader=False)
