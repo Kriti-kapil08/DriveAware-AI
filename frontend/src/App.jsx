@@ -57,6 +57,8 @@ function LiveMonitor({ session, speak, onSaved }) {
   const measurementsRef = useRef([]);
   const eventsRef = useRef([]);
   const runsRef = useRef({});
+  const blinkRunRef = useRef({ closedAt: null, suppressed: false });
+  const blinkCountRef = useRef(0);
   const startTimeRef = useRef(0);
   const pitchBaselineRef = useRef(null);
   const alertsRef = useRef(false);
@@ -66,6 +68,9 @@ function LiveMonitor({ session, speak, onSaved }) {
   const [measurement, setMeasurement] = useState(null);
   const [measurements, setMeasurements] = useState([]);
   const [events, setEvents] = useState([]);
+  const [blinkCount, setBlinkCount] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [quality, setQuality] = useState({ ready: false, coverage: 0, brightness: null, sampleCount: 0 });
   const [liveError, setLiveError] = useState("");
 
   useEffect(() => () => {
@@ -87,10 +92,15 @@ function LiveMonitor({ session, speak, onSaved }) {
       measurementsRef.current = [];
       eventsRef.current = [];
       runsRef.current = {};
+      blinkRunRef.current = { closedAt: null, suppressed: false };
+      blinkCountRef.current = 0;
       pitchBaselineRef.current = null;
       setMeasurements([]);
       setEvents([]);
+      setBlinkCount(0);
+      setElapsedSeconds(0);
       setMeasurement(null);
+      setQuality({ ready: false, coverage: 0, brightness: null, sampleCount: 0 });
       startTimeRef.current = performance.now();
       runningRef.current = true;
       setRunning(true);
@@ -102,8 +112,8 @@ function LiveMonitor({ session, speak, onSaved }) {
     }
   }
 
-  function updateCueRuns(row, elapsed) {
-    if (!row["Face detected"]) {
+  function updateCueRuns(row, elapsed, evidenceAdequate) {
+    if (!row["Face detected"] || !evidenceAdequate) {
       runsRef.current = {};
       return;
     }
@@ -128,6 +138,33 @@ function LiveMonitor({ session, speak, onSaved }) {
       }
       runsRef.current[item.key] = run;
     }
+  }
+
+  function updateBlinkEstimate(row, elapsed, evidenceAdequate) {
+    const state = blinkRunRef.current;
+    if (!row["Face detected"] || !evidenceAdequate) {
+      state.closedAt = null;
+      state.suppressed = false;
+      return;
+    }
+    if (row.EAR < 0.20) {
+      if (state.suppressed) return;
+      if (state.closedAt == null) state.closedAt = elapsed;
+      if (elapsed - state.closedAt > 0.8) {
+        state.closedAt = null;
+        state.suppressed = true;
+      }
+      return;
+    }
+    if (state.closedAt != null) {
+      const duration = elapsed - state.closedAt;
+      if (duration >= 0.08 && duration <= 0.8) {
+        blinkCountRef.current += 1;
+        setBlinkCount(blinkCountRef.current);
+      }
+    }
+    state.closedAt = null;
+    state.suppressed = false;
   }
 
   async function captureNextFrame() {
@@ -165,10 +202,20 @@ function LiveMonitor({ session, speak, onSaved }) {
         "Open mouth": Boolean(result.face_detected && result.MAR > 0.30),
         landmarks: result.landmarks || [],
       };
-      measurementsRef.current = [...measurementsRef.current.slice(-179), row];
+      const { landmarks, ...storedRow } = row;
+      measurementsRef.current = [...measurementsRef.current, storedRow];
       setMeasurements(measurementsRef.current);
       setMeasurement(row);
-      updateCueRuns(row, elapsed);
+      const recent = measurementsRef.current.slice(-10);
+      const recentFaces = recent.filter((sample) => sample["Face detected"]);
+      const recentBrightness = recentFaces.map((sample) => sample["Face brightness"]).filter((value) => value != null);
+      const rollingCoverage = recent.length ? recentFaces.length / recent.length : 0;
+      const rollingBrightness = recentBrightness.length ? recentBrightness.reduce((sum, value) => sum + value, 0) / recentBrightness.length : null;
+      const evidenceAdequate = recent.length >= 4 && rollingCoverage >= 0.70 && rollingBrightness != null && rollingBrightness >= 45;
+      setQuality({ ready: evidenceAdequate, coverage: rollingCoverage, brightness: rollingBrightness, sampleCount: recent.length });
+      setElapsedSeconds(elapsed);
+      updateBlinkEstimate(row, elapsed, evidenceAdequate);
+      updateCueRuns(row, elapsed, evidenceAdequate);
     } catch (error) {
       setLiveError(error.message || "The webcam frame could not be analyzed.");
       runningRef.current = false;
@@ -177,7 +224,7 @@ function LiveMonitor({ session, speak, onSaved }) {
       setRunning(false);
       return;
     }
-    if (runningRef.current) window.setTimeout(captureNextFrame, 500);
+    if (runningRef.current) window.setTimeout(captureNextFrame, 200);
   }
 
   async function stopMonitoring() {
@@ -186,11 +233,13 @@ function LiveMonitor({ session, speak, onSaved }) {
     streamRef.current = null;
     setRunning(false);
     if (!measurementsRef.current.length) return;
+    const durationSeconds = (performance.now() - startTimeRef.current) / 1000;
+    setElapsedSeconds(durationSeconds);
     setSaving(true);
     try {
       const response = await fetch("/api/live-session", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: session.id, session_started_at: session.started, measurements: measurementsRef.current, events: eventsRef.current }),
+        body: JSON.stringify({ session_id: session.id, session_started_at: session.started, measurements: measurementsRef.current, events: eventsRef.current, blink_count: blinkCountRef.current, duration_seconds: durationSeconds }),
       });
       const result = await readApiJson(response);
       onSaved({ ...result, measurements: measurementsRef.current });
@@ -200,14 +249,24 @@ function LiveMonitor({ session, speak, onSaved }) {
   }
 
   alertsRef.current = voiceAlerts;
-  const latest = measurements[measurements.length - 1];
+  const latest = measurement;
   const coverage = measurements.length ? Math.round(measurements.filter((row) => row["Face detected"]).length / measurements.length * 100) : 0;
+  const blinkRate = elapsedSeconds > 0 ? blinkCount / elapsedSeconds * 60 : 0;
+  const qualityTitle = !running ? (measurements.length ? "Monitoring stopped" : "Camera is off") : quality.ready ? "Visual evidence adequate" : "Cue checks paused";
+  const qualityMessage = !running
+    ? (measurements.length ? "Start a new monitoring session to collect frames and resume cue checks." : "Start monitoring to collect camera frames. Cue checks remain paused while the camera is off.")
+    : quality.sampleCount < 4
+      ? "Collecting a few frames before checking cues."
+      : quality.ready
+        ? `Recent face coverage ${Math.round(quality.coverage * 100)}% · brightness ${quality.brightness.toFixed(0)}/255`
+        : "Keep the face visible in good lighting; alerts resume when recent coverage is at least 70% and brightness is at least 45/255.";
 
   return <section className="panel live-panel">
     <div className="section-kicker">LIVE WEBCAM · LOCAL ANALYSIS</div>
     <h2>Live driver monitoring</h2>
     <p className="section-intro">Allow camera access to measure facial cues on this computer. No microphone audio is collected. Keep the face centered and well lit.</p>
     {liveError && <div className="live-error">{liveError}</div>}
+    <div className={`quality-banner ${running && quality.ready ? "ready" : "waiting"}`}><b>{qualityTitle}</b><span>{qualityMessage}</span></div>
     <div className="live-video-wrap">
       <video ref={videoRef} autoPlay muted playsInline className="live-video" />
       {latest?.landmarks?.length > 0 && <svg className="landmark-overlay" viewBox="0 0 1 1" preserveAspectRatio="none" aria-label="Face landmark overlay">{latest.landmarks.filter((_, index) => index % 4 === 0).map((point, index) => <circle key={index} cx={point.x} cy={point.y} r="0.003" />)}</svg>}
@@ -222,8 +281,10 @@ function LiveMonitor({ session, speak, onSaved }) {
     </div>
     <div className="live-stats">
       <Metric label="FACE TRACKING" value={latest ? (latest["Face detected"] ? "Detected" : "Not found") : "Waiting"} note="Latest camera frame" tone="accent-green" />
-      <Metric label="SESSION COVERAGE" value={`${coverage}%`} note={`${measurements.length} sampled frames`} tone="accent-blue" />
+      <Metric label="LIVE EVIDENCE" value={!running ? "Stopped" : quality.ready ? "Adequate" : "Paused"} note={!running ? "Start camera to evaluate frames" : quality.brightness == null ? "Waiting for face and lighting" : `${Math.round(quality.coverage * 100)}% coverage · ${quality.brightness.toFixed(0)}/255 brightness`} tone={running && quality.ready ? "accent-blue" : "accent-amber"} />
       <Metric label="EYE OPENING (EAR)" value={latest?.EAR?.toFixed(3) ?? "—"} note="Lower values indicate less eye opening" tone="accent-amber" />
+      <Metric label="BLINK COUNT (EST.)" value={blinkCount} note="Brief sampled eye closures" tone="accent-blue" />
+      <Metric label="BLINK RATE (EST./MIN)" value={blinkRate.toFixed(1)} note="Based on this monitoring session" tone="accent-teal" />
       <Metric label="SUSTAINED CUES" value={events.length} note="Across this live session" tone="accent-purple" />
     </div>
     <div className="live-event-list"><h3>Live cue events</h3>{events.length ? events.map((event, index) => <div className="cue-row" key={`${event.Cue}-${index}`}><div className="cue-mark">!</div><div><b>{event.Cue}</b><span>{event.Evidence}</span></div><small>{event["Started (s)"]} s</small></div>) : <p>No sustained cues recorded so far.</p>}</div>
@@ -271,7 +332,7 @@ export default function App() {
     form.append("video", file);
     form.append("session_id", session.id);
     form.append("session_started_at", session.started);
-    form.append("sample_rate", "5");
+    form.append("sample_rate", "8");
     try {
       const response = await fetch("/api/analyze", { method: "POST", body: form });
       const result = await readApiJson(response);
@@ -323,6 +384,38 @@ export default function App() {
     setRecords((old) => [entry, ...old.filter((record) => record.analysis._record_id !== entry.analysis._record_id)]);
   }
 
+  function downloadHistoryCsv() {
+    const headers = ["Analyzed at", "Session started", "Analysis", "Frames", "Face coverage", "Visual evidence", "Face brightness", "Average EAR", "Average MAR", "Blink count (estimate)", "Blink rate (estimate/min)", "Cue", "Started (s)", "Rule met (s)", "Evidence"];
+    const escapeCell = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+    const rows = records.flatMap((record) => {
+      const events = record.events?.length ? record.events : [null];
+      return events.map((event) => [
+        record.analyzed_at || record.analysis["Analyzed at"],
+        record.session_started_at,
+        record.analysis.Video,
+        record.analysis.Frames,
+        record.analysis["Face coverage"],
+        record.analysis["Visual evidence"],
+        record.analysis["Face brightness"],
+        record.analysis["Average EAR"],
+        record.analysis["Average MAR"],
+        record.analysis["Blink count (estimate)"],
+        record.analysis["Blink rate (estimate/min)"],
+        event?.Cue,
+        event?.["Started (s)"],
+        event?.["Rule met (s)"],
+        event?.Evidence,
+      ]);
+    });
+    const csv = [headers, ...rows].map((row) => row.map(escapeCell).join(",")).join("\r\n");
+    const url = URL.createObjectURL(new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `driveaware-session-history-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark">D</div><div><b>DriveAware</b><span>AI MONITORING</span></div></div>
@@ -347,7 +440,7 @@ export default function App() {
             <Metric label="EVIDENCE QUALITY" value={latest?.["Visual evidence"] || "Waiting"} note={latest ? `Brightness ${latest["Face brightness"] ?? "—"}/255` : "Analyze a clip to begin"} tone="accent-teal" />
           </section>
           <section className="panel analysis-panel"><div className="panel-heading"><div><h3>{active?.analysis?.Video || "Latest analysis"}</h3><p>{latest ? `Analyzed ${active?.analyzed_at || latest["Analyzed at"]}` : "Your analyzed video and measurements will appear here."}</p></div>{latest && <span className={`status-badge ${latest["Visual evidence"] === "Adequate" ? "good" : "warn"}`}>{latest["Visual evidence"] === "Adequate" ? "●" : "●"} {latest["Visual evidence"]}</span>}</div>
-            {latest ? <><div className="detail-metrics"><div><small>AVERAGE EAR</small><b>{latest["Average EAR"] ?? "—"}</b></div><div><small>AVERAGE MAR</small><b>{latest["Average MAR"] ?? "—"}</b></div><div><small>FRAMES</small><b>{latest.Frames}</b></div><div><small>FACE BRIGHTNESS</small><b>{latest["Face brightness"] ?? "—"}<em>/255</em></b></div></div><EarChart rows={active?.measurements || []}/></> : <div className="empty-state"><div className="empty-icon">◉</div><b>No analysis yet</b><span>Upload a short clip to see the visual measurements.</span><button className="secondary-button" onClick={() => setPage("analyze")}>Open video analysis</button></div>}
+            {latest ? <><div className="detail-metrics"><div><small>AVERAGE EAR</small><b>{latest["Average EAR"] ?? "—"}</b></div><div><small>AVERAGE MAR</small><b>{latest["Average MAR"] ?? "—"}</b></div><div><small>FRAMES</small><b>{latest.Frames}</b></div><div><small>FACE BRIGHTNESS</small><b>{latest["Face brightness"] ?? "—"}<em>/255</em></b></div><div><small>BLINK COUNT (EST.)</small><b>{latest["Blink count (estimate)"] ?? "—"}</b></div><div><small>BLINK RATE (EST./MIN)</small><b>{latest["Blink rate (estimate/min)"] ?? "—"}</b></div></div><EarChart rows={active?.measurements || []}/></> : <div className="empty-state"><div className="empty-icon">◉</div><b>No analysis yet</b><span>Upload a short clip to see the visual measurements.</span><button className="secondary-button" onClick={() => setPage("analyze")}>Open video analysis</button></div>}
           </section>
           <section className="panel"><div className="panel-heading"><div><h3>Recent cues</h3><p>Sustained measurements with their rule evidence</p></div><button className="text-button" onClick={() => setPage("history")}>View saved history →</button></div>
             {currentEvents.length ? <div className="cue-list">{currentEvents.slice(0, 4).map((event, index) => <div className="cue-row" key={`${event.Cue}-${index}`}><div className="cue-mark">!</div><div><b>{event.Cue}</b><span>{event.Evidence}</span></div><small>{event["Started (s)"]} s</small></div>)}</div> : <div className="quiet-state">No sustained cues recorded in this session.</div>}
@@ -363,10 +456,11 @@ export default function App() {
 
         {page === "live" && <LiveMonitor session={session} speak={speak} onSaved={addLiveRecord} />}
 
-        {page === "history" && <section className="panel history-panel"><div className="panel-heading"><div><h3>Saved analysis history</h3><p>Completed webcam and recorded-video analyses saved locally</p></div><span className="count-pill">{records.length} records</span></div>
+        {page === "history" && <section className="panel history-panel"><div className="panel-heading"><div><h3>Saved analysis history</h3><p>Completed webcam and recorded-video analyses saved locally</p></div><div className="history-heading-actions"><span className="count-pill">{records.length} records</span><button className="secondary-button export-button" onClick={downloadHistoryCsv} disabled={!records.length}>Download CSV</button></div></div>
           {records.length ? <div className="table-scroll"><table><thead><tr><th>SESSION</th><th>ANALYZED</th><th>FRAMES</th><th>FACE COVERAGE</th><th>EVIDENCE</th><th>CUES</th><th/></tr></thead><tbody>{records.map((record, index) => <tr key={record.analysis._record_id || `${record.analyzed_at}-${index}`}><td><b>{record.analysis.Video}</b></td><td>{record.analyzed_at}</td><td>{record.analysis.Frames}</td><td>{record.analysis["Face coverage"]}</td><td><span className={`status-badge ${record.analysis["Visual evidence"] === "Adequate" ? "good" : "warn"}`}>{record.analysis["Visual evidence"]}</span></td><td>{record.events.length}</td><td className="history-actions"><button className="text-button" onClick={() => setSelectedRecord(record)}>Details</button><button className="icon-button" title="Open overview" onClick={() => {setActive(record); setPage("overview");}}>↗</button></td></tr>)}</tbody></table></div> : <div className="empty-state compact"><div className="empty-icon">◷</div><b>No saved analyses</b><span>Completed analyses will appear here.</span></div>}
           {selectedRecord && <div className="history-detail"><div className="history-detail-heading"><div><span className="section-kicker">ANALYSIS DETAILS</span><h3>{selectedRecord.analysis.Video}</h3><p>{selectedRecord.session_started_at || "Session"} · Analyzed {selectedRecord.analyzed_at}</p></div><button className="icon-button" aria-label="Close analysis details" onClick={() => setSelectedRecord(null)}>×</button></div>
-            <div className="history-summary"><div><small>FACE COVERAGE</small><b>{selectedRecord.analysis["Face coverage"]}</b></div><div><small>EVIDENCE QUALITY</small><b>{selectedRecord.analysis["Visual evidence"]}</b></div><div><small>AVERAGE EAR</small><b>{selectedRecord.analysis["Average EAR"] ?? "—"}</b></div><div><small>AVERAGE MAR</small><b>{selectedRecord.analysis["Average MAR"] ?? "—"}</b></div><div><small>FACE BRIGHTNESS</small><b>{selectedRecord.analysis["Face brightness"] ?? "—"}/255</b></div></div>
+            <div className="history-summary"><div><small>FACE COVERAGE</small><b>{selectedRecord.analysis["Face coverage"]}</b></div><div><small>EVIDENCE QUALITY</small><b>{selectedRecord.analysis["Visual evidence"]}</b></div><div><small>AVERAGE EAR</small><b>{selectedRecord.analysis["Average EAR"] ?? "—"}</b></div><div><small>AVERAGE MAR</small><b>{selectedRecord.analysis["Average MAR"] ?? "—"}</b></div><div><small>FACE BRIGHTNESS</small><b>{selectedRecord.analysis["Face brightness"] ?? "—"}/255</b></div><div><small>SAMPLED FRAMES</small><b>{selectedRecord.analysis.Frames}</b></div><div><small>BLINK COUNT (EST.)</small><b>{selectedRecord.analysis["Blink count (estimate)"] ?? "—"}</b></div><div><small>BLINK RATE (EST./MIN)</small><b>{selectedRecord.analysis["Blink rate (estimate/min)"] ?? "—"}</b></div></div>
+            {selectedRecord.measurements?.length > 1 && <div className="history-chart"><h4>Measurements across sampled frames</h4><EarChart rows={selectedRecord.measurements} /></div>}
             <h4>Recorded cue evidence</h4>
             {selectedRecord.events?.length ? <div className="table-scroll"><table><thead><tr><th>CUE</th><th>STARTED (S)</th><th>RULE MET (S)</th><th>EVIDENCE</th></tr></thead><tbody>{selectedRecord.events.map((event, index) => <tr key={`${event.Cue}-${index}`}><td><b>{event.Cue}</b></td><td>{event["Started (s)"]}</td><td>{event["Rule met (s)"]}</td><td>{event.Evidence}</td></tr>)}</tbody></table></div> : <p className="history-no-events">No sustained cues were recorded in this analysis.</p>}
           </div>}

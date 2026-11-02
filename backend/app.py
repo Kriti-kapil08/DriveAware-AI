@@ -34,12 +34,16 @@ def initialize_db():
             session_started_at TEXT NOT NULL,
             analyzed_at TEXT NOT NULL,
             record_json TEXT NOT NULL,
-            events_json TEXT NOT NULL
+            events_json TEXT NOT NULL,
+            measurements_json TEXT NOT NULL DEFAULT '[]'
         )""")
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(saved_analyses)")}
+        if "measurements_json" not in columns:
+            connection.execute("ALTER TABLE saved_analyses ADD COLUMN measurements_json TEXT NOT NULL DEFAULT '[]'")
 
 
 def get_history(session_id=None, limit=100):
-    query = "SELECT session_id, session_started_at, analyzed_at, record_json, events_json FROM saved_analyses"
+    query = "SELECT session_id, session_started_at, analyzed_at, record_json, events_json, measurements_json FROM saved_analyses"
     args = []
     if session_id:
         query += " WHERE session_id = ?"
@@ -50,7 +54,7 @@ def get_history(session_id=None, limit=100):
         rows = connection.execute(query, args).fetchall()
     return [{
         "session_id": row[0], "session_started_at": row[1], "analyzed_at": row[2],
-        "analysis": json.loads(row[3]), "events": json.loads(row[4]),
+        "analysis": json.loads(row[3]), "events": json.loads(row[4]), "measurements": json.loads(row[5]),
     } for row in rows]
 
 
@@ -58,11 +62,17 @@ def save_analysis(session_id, session_started_at, result):
     record = result["analysis"]
     record_id = str(uuid.uuid4())
     record["_record_id"] = record_id
+    measurements = [
+        {key: value for key, value in row.items() if key != "landmarks"}
+        for row in result.get("measurements", [])
+    ]
     with connect_db() as connection:
         connection.execute(
-            "INSERT OR REPLACE INTO saved_analyses VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO saved_analyses "
+            "(record_id, session_id, session_started_at, analyzed_at, record_json, events_json, measurements_json) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (record_id, session_id, session_started_at, record["Analyzed at"],
-             json.dumps(record), json.dumps(result["events"])),
+             json.dumps(record), json.dumps(result["events"]), json.dumps(measurements)),
         )
 
 
@@ -178,7 +188,7 @@ def analyze():
             video_path = Path(temp.name)
         result = analyze_video(
             video_path, filename,
-            rate=max(1, min(8, int(request.form.get("sample_rate", 5)))),
+            rate=max(1, min(8, int(request.form.get("sample_rate", 8)))),
             eye_limit=float(request.form.get("eye_threshold", 0.20)),
             mouth_limit=float(request.form.get("mouth_threshold", 0.30)),
         )
@@ -227,6 +237,8 @@ def save_live_session():
     brightness = sum(brightnesses) / len(brightnesses) if brightnesses else 0.0
     adequate = coverage >= 0.70 and brightness >= 45
     events = payload.get("events") or []
+    blink_count = max(0, int(payload.get("blink_count", 0)))
+    duration_seconds = max(0.0, float(payload.get("duration_seconds", 0)))
     record = {
         "Video": "Live webcam session",
         "Analyzed at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -236,9 +248,11 @@ def save_live_session():
         "Visual evidence": "Adequate" if adequate else "Insufficient",
         "Average EAR": round(sum(ears) / len(ears), 3) if ears else None,
         "Average MAR": round(sum(mars) / len(mars), 3) if mars else None,
+        "Blink count (estimate)": blink_count,
+        "Blink rate (estimate/min)": round(blink_count / duration_seconds * 60, 1) if duration_seconds else 0.0,
         "Sustained cues": len(events),
     }
-    result = {"analysis": record, "events": events}
+    result = {"analysis": record, "events": events, "measurements": measurements}
     session_id = str(payload.get("session_id") or uuid.uuid4())
     session_started_at = str(payload.get("session_started_at") or record["Analyzed at"])
     save_analysis(session_id, session_started_at, result)

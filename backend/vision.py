@@ -89,6 +89,42 @@ def find_cues(samples, rate, eye_limit, mouth_limit):
     return events
 
 
+def find_blinks(samples, eye_limit=0.20, maximum_closure_seconds=0.8):
+    """Estimate brief eye closures from sampled EAR values; this is not an IR blink sensor."""
+    blinks = []
+    closed_at = None
+    closed_frames = 0
+    suppressed_until_open = False
+    for row in samples:
+        second = row["Video time (s)"]
+        eye = row["EAR"]
+        if not row["Face detected"] or eye is None:
+            closed_at = None
+            closed_frames = 0
+            suppressed_until_open = False
+            continue
+        if eye < eye_limit:
+            if suppressed_until_open:
+                continue
+            if closed_at is None:
+                closed_at = second
+                closed_frames = 0
+            closed_frames += 1
+            if second - closed_at > maximum_closure_seconds:
+                closed_at = None
+                closed_frames = 0
+                suppressed_until_open = True
+            continue
+        if closed_at is not None and not suppressed_until_open:
+            duration = second - closed_at
+            if closed_frames > 0 and 0 < duration <= maximum_closure_seconds:
+                blinks.append({"Started (s)": round(closed_at, 2), "Reopened (s)": round(second, 2), "Duration (s)": round(duration, 2)})
+        closed_at = None
+        closed_frames = 0
+        suppressed_until_open = False
+    return blinks
+
+
 def create_landmarker():
     if not MODEL_PATH.exists():
         urlretrieve(MODEL_URL, MODEL_PATH)
@@ -151,7 +187,7 @@ def analyze_video(path, filename, rate=5, eye_limit=0.20, mouth_limit=0.30):
     sampled = detected = frame_no = 0
     detector = create_landmarker()
     try:
-        while sampled < 180:
+        while sampled < 300:
             ok, frame = capture.read()
             if not ok:
                 break
@@ -193,6 +229,8 @@ def analyze_video(path, filename, rate=5, eye_limit=0.20, mouth_limit=0.30):
     adequate = coverage >= 0.70 and average_brightness >= 45
     valid = [row for row in measurements if row["EAR"] is not None]
     events = find_cues(measurements, rate, eye_limit, mouth_limit) if adequate else []
+    blinks = find_blinks(measurements, eye_limit) if adequate else []
+    observed_duration = max(1 / rate, measurements[-1]["Video time (s)"] - measurements[0]["Video time (s)"]) if measurements else 0
     record = {
         "Video": filename,
         "Analyzed at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -202,6 +240,8 @@ def analyze_video(path, filename, rate=5, eye_limit=0.20, mouth_limit=0.30):
         "Visual evidence": "Adequate" if adequate else "Insufficient",
         "Average EAR": round(float(np.mean([row["EAR"] for row in valid])), 3) if valid else None,
         "Average MAR": round(float(np.mean([row["MAR"] for row in valid])), 3) if valid else None,
+        "Blink count (estimate)": len(blinks),
+        "Blink rate (estimate/min)": round(len(blinks) / observed_duration * 60, 1) if observed_duration else 0.0,
         "Sustained cues": len(events),
     }
     return {"analysis": record, "events": events, "measurements": measurements, "frames_total": total_frames}
